@@ -1,6 +1,10 @@
 [server]
 headless = true
 
+# ✅ Add these lines for Streamlit Cloud to install OCR packages
+[packages]
+apt_packages = ["tesseract-ocr", "poppler-utils"]
+
 [theme]
 primaryColor="#919dee"
 backgroundColor="#FFFFFF"
