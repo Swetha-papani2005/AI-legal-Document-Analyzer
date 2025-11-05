@@ -4,7 +4,8 @@ import pytesseract
 import pypdfium2
 
 # ✅ Set Tesseract path
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Local Windows only — disable for deployment
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 class DocumentReader:
     def __init__(self, input_folder, output_folder):
