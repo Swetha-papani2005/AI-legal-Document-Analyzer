@@ -5,3 +5,9 @@ pypdfium2
 pdf2image
 Pillow
 python-docx
+fitz
+PyMuPDF
+poppler-utils
+numpy
+pandas
+scikit-learn
