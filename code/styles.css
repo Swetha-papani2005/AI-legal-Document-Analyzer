@@ -1,0 +1,85 @@
+/* ===== General Page Styling ===== */
+body {
+    background: #ffffff;
+    font-family: 'Segoe UI', sans-serif;
+    color: #000;
+}
+
+/* ===== Title ===== */
+.title {
+    text-align: center;
+    font-weight: 800;
+    color: #919dee;
+    margin-top: -10px;
+}
+
+/* ===== Sidebar ===== */
+[data-testid="stSidebar"] {
+    background: #ffffff;
+    color: #000000;
+    border-right: 2px solid #919dee;
+}
+
+.sidebar-title {
+    font-weight: 1000;
+    color: #919dee;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] label {
+    background: white;
+    border-radius: 10px;
+    padding: 8px;
+    margin: 4px 0;
+    transition: 0.3s;
+    font-weight: 1000;
+    color: black;
+}
+
+[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+    background-color: #919dee;
+    color: white !important;
+}
+
+[data-testid="stSidebar"] .stSelectbox {
+    margin-top: 20px;
+}
+
+/* ===== Login Card ===== */
+.login-card {
+    background: #ffffff;
+    border: 2px solid #919dee;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    margin: auto;
+    width: 400px;
+    margin-top: 100px;
+}
+
+.login-card h2 {
+    color: #919dee;
+    font-weight: bold;
+}
+
+.stButton>button {
+    background-color: #919dee;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+}
+
+.stButton>button:hover {
+    background-color: #1527A0;
+    transform: scale(1.03);
+}
+
+/* ===== Metrics ===== */
+div[data-testid="stMetricValue"] {
+    color: #919dee;
+    font-weight: 1000;
+}
