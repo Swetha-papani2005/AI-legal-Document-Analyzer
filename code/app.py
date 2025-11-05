@@ -20,7 +20,7 @@ from PyPDF2 import PdfReader
 import pytesseract, pypdfium2
 
 # ✅ Tesseract OCR path
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ✅ Check if PDF has text
 def pdf_has_text(path):
