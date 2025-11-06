@@ -7,7 +7,7 @@ Developed by *Reddy Swetha Papani* | CSE  | Saveetha School of Engineering, Chen
 
 ## 🚀 Live Demo
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-legal-document-analyzer.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)(https://ai-legal-document-analyzer.streamlit.app/)
 
 > Click the button above to launch the live app instantly!
 
