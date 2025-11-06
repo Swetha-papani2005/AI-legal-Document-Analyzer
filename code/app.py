@@ -1,11 +1,10 @@
 # ============================================================
 # AI Legal Document Analyzer - Streamlit Dashboard
-# With OCR + Email Notifications + Activity Log + Strong Password + Reset Password
+# With OCR + Email Notifications + Secure Secrets + Activity Log
 # ============================================================
 
 import streamlit as st
 import json
-import os
 from pathlib import Path
 import hashlib
 from datetime import datetime
@@ -22,7 +21,7 @@ from legal_core import (
     compare_versions,
 )
 
-# OCR dependencies
+# OCR
 from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
@@ -35,6 +34,7 @@ if platform.system() == "Windows":
 # ------------------ INITIAL SETUP ------------------
 DATA_RAW = Path("../data/raw documents")
 DATA_REPORTS = Path("../data/reports")
+
 for path in [DATA_RAW, DATA_REPORTS]:
     path.mkdir(parents=True, exist_ok=True)
 
@@ -47,14 +47,13 @@ for f in [USERS_FILE, HISTORY_FILE]:
         f.write_text("{}")
 
 
-# ------------------ EMAIL CONFIG (SECURE) ------------------
+# ------------------ EMAIL CONFIG (SECURE SECRETS) ------------------
 SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
 SENDER_PASS = st.secrets["SENDER_PASS"]
 ADMIN_EMAIL = st.secrets["ADMIN_EMAIL"]
 
-
 def send_email_notification(subject, message):
-    """Send notification email securely"""
+    """Send email to admin"""
     try:
         msg = MIMEMultipart()
         msg["From"] = SENDER_EMAIL
@@ -66,81 +65,58 @@ def send_email_notification(subject, message):
             server.starttls()
             server.login(SENDER_EMAIL, SENDER_PASS)
             server.send_message(msg)
-        print("✅ Email Sent")
+
+        print("✅ Email sent!")
     except Exception as e:
-        print(f"⚠ Email Send Failed: {e}")
+        print("Email failed:", e)
 
 
-# ------------------ LOG ACTIVITY ------------------
+# ------------------ LOGGING ------------------
 def log_activity(action, email):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    entry = f"[{timestamp}] {action} by {email}\n"
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(entry)
+        f.write(f"[{timestamp}] {action} by {email}\n")
 
 
 # ------------------ PASSWORD UTILS ------------------
-def strong_password(password):
-    """Check password strength"""
-    if len(password) < 8:
-        return False
-    if not any(c.islower() for c in password):
-        return False
-    if not any(c.isupper() for c in password):
-        return False
-    if not any(c.isdigit() for c in password):
-        return False
-    if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/" for c in password):
-        return False
-    return True
-
-
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 def verify_user(email, password):
     users = json.loads(USERS_FILE.read_text())
     return email in users and users[email] == hash_password(password)
-
 
 def register_user(email, password):
     users = json.loads(USERS_FILE.read_text())
 
     if email in users:
         return False
+    
+    if len(password) < 6:
+        return "weak"
 
     users[email] = hash_password(password)
     USERS_FILE.write_text(json.dumps(users))
 
-    # Notify admin
-    subject = "🆕 New User Registered"
-    message = f"Email: {email}\nTime: {datetime.now()}"
-    send_email_notification(subject, message)
-
-    # Log
+    # Notifications
+    send_email_notification(
+        "🆕 New User Registered",
+        f"New user registered:\nEmail: {email}\nTime: {datetime.now()}"
+    )
     log_activity("User Registered", email)
     return True
 
 
 def reset_password(email, new_password):
     users = json.loads(USERS_FILE.read_text())
-
-    if email not in users:
-        return False
-
     users[email] = hash_password(new_password)
     USERS_FILE.write_text(json.dumps(users))
 
-    # Notify admin
-    subject = "🔁 Password Reset Performed"
-    message = f"User reset password.\nEmail: {email}\nTime: {datetime.now()}"
-    send_email_notification(subject, message)
-
-    # Log
+    send_email_notification(
+        "🔑 Password Reset",
+        f"User reset password:\nEmail: {email}\nTime: {datetime.now()}"
+    )
     log_activity("Password Reset", email)
-
-    return True
 
 
 # ------------------ OCR FUNCTION ------------------
@@ -151,77 +127,60 @@ def extract_text_with_ocr(pdf_path):
         for page in pages:
             text += pytesseract.image_to_string(page, lang="eng")
     except Exception as e:
-        st.error(f"OCR failed: {e}")
-
+        st.error("OCR failed:", e)
     return text.strip()
 
 
 # ------------------ LOGIN PAGE ------------------
 def login_page():
-    st.markdown(
-        """
-        <div class="login-card">
-            <h2>🔐 AI Legal Document Analyzer</h2>
-            <p>Login • Register • Reset Password</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h2>🔐 AI Legal Document Analyzer</h2>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["Login", "Register", "Forgot Password"])
+    tab1, tab2, tab3 = st.tabs(["Login", "Register", "Reset Password"])
 
-    # ---------------- LOGIN ----------------
+    # LOGIN
     with tab1:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_pass")
-
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
         if st.button("Login"):
             if verify_user(email, password):
                 st.session_state["user"] = email
-                st.success("✅ Login successful!")
 
-                # Email + Log
-                subject = "🔓 User Logged In"
-                message = f"Login by: {email}\nTime: {datetime.now()}"
-                send_email_notification(subject, message)
+                send_email_notification(
+                    "✅ User Logged In",
+                    f"Email: {email}\nTime: {datetime.now()}"
+                )
                 log_activity("User Logged In", email)
-
                 st.rerun()
             else:
-                st.error("❌ Incorrect email or password.")
+                st.error("❌ Invalid credentials")
 
-    # ---------------- REGISTER ----------------
+    # REGISTER
     with tab2:
-        email = st.text_input("Email", key="reg_email")
-        password = st.text_input("Password", type="password", key="reg_pass")
+        email = st.text_input("Register Email")
+        password = st.text_input("Create Password", type="password")
 
         if st.button("Register"):
-            if not strong_password(password):
-                st.warning("⚠ Password must be 8+ chars, upper, lower, number, special char.")
-            else:
-                if register_user(email, password):
-                    st.success("✅ Registration complete! Please login.")
-                else:
-                    st.error("⚠ Email already registered.")
+            result = register_user(email, password)
 
-    # ---------------- RESET PASSWORD ----------------
+            if result == "weak":
+                st.error("⚠ Password must be at least 6 characters.")
+            elif result:
+                st.success("✅ Registered Successfully!")
+            else:
+                st.error("⚠ Email already exists!")
+
+    # RESET PASSWORD
     with tab3:
-        reset_email = st.text_input("Enter your registered email")
-        new_pass = st.text_input("Enter new password", type="password")
+        email = st.text_input("Email for Reset")
+        new_password = st.text_input("New Password", type="password")
 
         if st.button("Reset Password"):
-            if not strong_password(new_pass):
-                st.warning("⚠ Weak password. Use strong password.")
-            else:
-                if reset_password(reset_email, new_pass):
-                    st.success("✅ Password reset successfully!")
-                else:
-                    st.error("❌ Email not found.")
+            reset_password(email, new_password)
+            st.success("✅ Password Reset Successfully!")
 
 
 # ------------------ SIDEBAR ------------------
 def sidebar_nav():
-    st.sidebar.markdown("<h2 class='sidebar-title'>⚖ Legal Analyzer</h2>", unsafe_allow_html=True)
     menu = ["📄 Analyze Document", "🔍 Compare Documents", "📊 Reports", "⚠ Risk Analysis", "🚪 Logout"]
     return st.sidebar.radio("Menu", menu)
 
@@ -229,9 +188,13 @@ def sidebar_nav():
 # ------------------ SAVE HISTORY ------------------
 def save_history(user, doc_type, risk, filename):
     history = json.loads(HISTORY_FILE.read_text())
+
     if user not in history:
         history[user] = []
-    history[user].append({"file": filename, "type": doc_type, "risk": risk})
+
+    entry = {"file": filename, "type": doc_type, "risk": risk}
+    history[user].append(entry)
+
     HISTORY_FILE.write_text(json.dumps(history, indent=2))
 
 
@@ -240,73 +203,132 @@ def main_dashboard():
     user = st.session_state["user"]
     choice = sidebar_nav()
 
-    with open("styles.css") as css:
-        st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
+    st.markdown(f"<h2>Welcome, {user}</h2>", unsafe_allow_html=True)
 
-    st.markdown("<h1 class='title'>AI Legal Document Analyzer</h1>", unsafe_allow_html=True)
-
+    # LOGOUT
     if choice == "🚪 Logout":
         del st.session_state["user"]
         st.rerun()
 
+    # ANALYZE DOCUMENT
     elif choice == "📄 Analyze Document":
-        uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
-        manual_text = st.text_area("Or paste text", height=150)
+        uploaded = st.file_uploader("Upload PDF", type=["pdf"])
+        text_input = st.text_area("Or paste text here")
 
-        if uploaded_file or manual_text.strip():
-            if uploaded_file:
-                file_path = DATA_RAW / uploaded_file.name
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+        if uploaded or text_input.strip():
+            if uploaded:
+                pdf_path = DATA_RAW / uploaded.name
+                with open(pdf_path, "wb") as f:
+                    f.write(uploaded.getbuffer())
 
-                text = extract_text_from_pdf(str(file_path))
+                text = extract_text_from_pdf(str(pdf_path))
+
                 if len(text) < 20:
-                    st.warning("Scanned PDF detected — Running OCR...")
-                    text = extract_text_with_ocr(str(file_path))
+                    st.warning("Scanned PDF detected → applying OCR…")
+                    text = extract_text_with_ocr(str(pdf_path))
             else:
-                text = manual_text
+                text = text_input
 
             if len(text) < 20:
-                st.error("Could not extract readable text.")
-                return
+                st.error("Could not extract text")
+            else:
+                st.success("Document processed ✅")
 
-            st.success("✅ Document Processed!")
+                doc_type = detect_contract_type(text)
+                clauses = detect_clauses_with_excerpts(text)
+                risk, risk_comment = assess_risk(clauses)
+                summary = summarize_text(text, 4)
 
-            # PROCESSING
-            doc_type = detect_contract_type(text)
-            clauses = detect_clauses_with_excerpts(text)
-            risk_level, risk_comment = assess_risk(clauses)
-            summary = summarize_text(text, n=4)
+                save_history(user, doc_type, risk, uploaded.name if uploaded else "Manual Text")
 
-            save_history(user, doc_type, risk_level, uploaded_file.name if uploaded_file else "Manual Text")
+                # ✅ Summary
+                st.subheader("🧠 Summary")
+                st.success(summary)
 
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Words", len(text.split()))
-            col2.metric("Chars", len(text))
-            col3.metric("Sentences", text.count("."))
-            col4.metric("Risk", risk_level)
+                # ✅ CLAUSES UI (FOUND + MISSING)
+                st.subheader("📑 Key Clauses Found")
 
-            st.subheader("📘 Overview")
-            st.write("Type:", doc_type)
-            st.write("Risk:", risk_level)
-            st.info(risk_comment)
+                st.markdown("""
+                <style>
+                .clause-box {
+                    background-color: #f9f9ff;
+                    border-left: 5px solid #919dee;
+                    padding: 10px;
+                    border-radius: 8px;
+                    margin-bottom: 10px;
+                }
+                .found { color: green; }
+                .missing { color: red; }
+                </style>
+                """, unsafe_allow_html=True)
 
-            st.subheader("🧠 Summary")
-            st.success(summary)
+                for clause, info in clauses.items():
+                    icon = "✅" if info["found"] else "❌"
+                    status = "found" if info["found"] else "missing"
+                    excerpt = info["excerpt"][:200] + "..." if info["excerpt"] else ""
 
-            st.subheader("📜 Extracted Text")
-            st.text_area("Text", text[:4000] + "...", height=250)
+                    st.markdown(
+                        f"""
+                        <div class="clause-box">
+                            <b>{clause}</b>
+                            <span class="{status}" style="float:right">{icon} {status.title()}</span>
+                            <br><small>{excerpt}</small>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                # ✅ Extracted Text
+                st.subheader("📜 Extracted Text")
+                st.text_area("Text", text[:4000] + "...", height=250)
+
+    # COMPARE DOCUMENTS
+    elif choice == "🔍 Compare Documents":
+        col1, col2 = st.columns(2)
+        f1 = col1.file_uploader("First Document", type=["pdf"])
+        f2 = col2.file_uploader("Second Document", type=["pdf"])
+
+        if f1 and f2:
+            p1 = DATA_RAW / f1.name
+            p2 = DATA_RAW / f2.name
+            with open(p1, "wb") as f:
+                f.write(f1.getbuffer())
+            with open(p2, "wb") as f:
+                f.write(f2.getbuffer())
+
+            t1 = extract_text_from_pdf(str(p1))
+            t2 = extract_text_from_pdf(str(p2))
+
+            sim = compare_versions(t1, t2)
+            st.metric("Similarity", f"{sim}%")
+
+    # REPORTS
+    elif choice == "📊 Reports":
+        st.subheader("History")
+        history = json.loads(HISTORY_FILE.read_text()).get(user, [])
+        for item in history:
+            st.write(f"📄 {item['file']} → {item['type']} | Risk: {item['risk']}")
+
+    # RISK ANALYSIS
+    elif choice == "⚠ Risk Analysis":
+        history = json.loads(HISTORY_FILE.read_text()).get(user, [])
+        low = len([h for h in history if h["risk"] == "Low"])
+        med = len([h for h in history if h["risk"] == "Medium"])
+        high = len([h for h in history if h["risk"] == "High"])
+
+        st.write(f"🟢 Low : {low}")
+        st.write(f"🟡 Medium : {med}")
+        st.write(f"🔴 High : {high}")
 
 
 # ------------------ APP ENTRY ------------------
 def main():
-    st.set_page_config(page_title="AI Legal Document Analyzer", layout="wide")
+    st.set_page_config(page_title="AI Legal Analyzer", layout="wide")
 
     if "user" not in st.session_state:
         login_page()
     else:
         main_dashboard()
-
 
 if __name__ == "__main__":
     main()
