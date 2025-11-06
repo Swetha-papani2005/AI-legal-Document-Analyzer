@@ -31,4 +31,4 @@ Developed by *Reddy Swetha Papani* | CSE  | Saveetha School of Engineering, Chen
 
 ---
 
-🖋 Developed with ❤ by Jahnavi Kodavati
+🖋 Developed with Swetha Papani
