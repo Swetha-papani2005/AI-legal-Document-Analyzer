@@ -44,13 +44,13 @@ for f in [USERS_FILE, HISTORY_FILE]:
     if not f.exists():
         f.write_text("{}")
 
-# ------------------ EMAIL CONFIG ------------------
-SENDER_EMAIL = "swetha.p983@gmail.com"
-SENDER_PASS = "rftdcedasljmltvc"  # 🔒 Replace with your Gmail app password (no spaces)
-ADMIN_EMAIL = "swetha.p983@gmail.com"
+# ------------------ EMAIL CONFIG (Loaded Safely) ------------------
+SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
+SENDER_PASS = st.secrets["SENDER_PASS"]
+ADMIN_EMAIL = st.secrets["ADMIN_EMAIL"]
 
 def send_email_notification(subject, message):
-    """Send notification email to admin"""
+    """Send notification email to admin securely"""
     try:
         msg = MIMEMultipart()
         msg["From"] = SENDER_EMAIL
@@ -178,12 +178,10 @@ def main_dashboard():
     st.markdown("<h1 class='title'>AI Legal Document Analyzer</h1>", unsafe_allow_html=True)
     st.caption(f"Welcome, {user} | Smart Legal Insights in {st.session_state['language']}")
 
-    # -------- Logout --------
     if choice == "🚪 Logout":
         del st.session_state["user"]
         st.rerun()
 
-    # -------- Analyze Document --------
     elif choice == "📄 Analyze Document":
         uploaded_file = st.file_uploader("📂 Upload Legal Document (PDF)", type=["pdf"])
         manual_text = st.text_area("📝 Or Paste Document Text Here", height=150)
@@ -194,7 +192,6 @@ def main_dashboard():
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 text = extract_text_from_pdf(str(file_path))
-
                 if not text or len(text) < 20:
                     st.warning("⚠ Detected scanned document — Running OCR...")
                     text = extract_text_with_ocr(str(file_path))
@@ -213,14 +210,10 @@ def main_dashboard():
 
                 save_history(user, doc_type, risk_level, uploaded_file.name if uploaded_file else "Manual Text")
 
-                word_count = len(text.split())
-                char_count = len(text)
-                sentence_count = text.count(".")
-
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Words", word_count)
-                col2.metric("Characters", char_count)
-                col3.metric("Sentences", sentence_count)
+                col1.metric("Words", len(text.split()))
+                col2.metric("Characters", len(text))
+                col3.metric("Sentences", text.count("."))
                 col4.metric("Risk", risk_level)
 
                 st.markdown("---")
@@ -230,7 +223,6 @@ def main_dashboard():
                 st.info(risk_comment)
                 st.subheader("🧠 Summary")
                 st.success(summary)
-
                 st.subheader("📜 Extracted Text")
                 st.text_area("Full Document Text", text[:4000] + "...", height=250)
 
