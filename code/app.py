@@ -1,6 +1,6 @@
 # ============================================================
 # AI Legal Document Analyzer - Streamlit Dashboard
-# With OCR support (Windows + Streamlit Cloud)
+# With OCR support + Email Notifications + Activity Log
 # ============================================================
 
 import streamlit as st
@@ -8,6 +8,11 @@ import json
 import os
 from pathlib import Path
 import hashlib
+from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import platform
 from legal_core import (
     extract_text_from_pdf,
     summarize_text,
@@ -21,9 +26,8 @@ from legal_core import (
 from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
-import platform
 
-# ✅ Set Windows Tesseract path only if running locally (NOT on Streamlit Cloud)
+# ✅ Windows Tesseract path (skip for Streamlit Cloud)
 if platform.system() == "Windows":
     pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
@@ -35,9 +39,40 @@ for path in [DATA_RAW, DATA_REPORTS]:
 
 USERS_FILE = Path("users.json")
 HISTORY_FILE = Path("history.json")
+LOG_FILE = Path("activity_log.txt")
 for f in [USERS_FILE, HISTORY_FILE]:
     if not f.exists():
         f.write_text("{}")
+
+# ------------------ EMAIL CONFIG ------------------
+SENDER_EMAIL = "swetha.p983@gmail.com"
+SENDER_PASS = "rftdcedasljmltvc"  # 🔒 Replace with your Gmail app password (no spaces)
+ADMIN_EMAIL = "swetha.p983@gmail.com"
+
+def send_email_notification(subject, message):
+    """Send notification email to admin"""
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = ADMIN_EMAIL
+        msg["Subject"] = subject
+        msg.attach(MIMEText(message, "plain"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASS)
+            server.send_message(msg)
+        print("✅ Email notification sent.")
+    except Exception as e:
+        print(f"⚠️ Email sending failed: {e}")
+
+# ------------------ ACTIVITY LOG ------------------
+def log_activity(action, email):
+    """Store local activity log with timestamp"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"[{timestamp}] {action} by {email}\n"
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(entry)
 
 # ------------------ PASSWORD UTILS ------------------
 def hash_password(password):
@@ -53,6 +88,12 @@ def register_user(email, password):
         return False
     users[email] = hash_password(password)
     USERS_FILE.write_text(json.dumps(users))
+
+    # Notify + Log
+    subject = "🆕 New User Registered on Legal Analyzer"
+    message = f"A new user has registered.\n\nEmail: {email}\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    send_email_notification(subject, message)
+    log_activity("User Registered", email)
     return True
 
 # ------------------ OCR FUNCTION ------------------
@@ -87,6 +128,11 @@ def login_page():
             if verify_user(email, password):
                 st.session_state["user"] = email
                 st.success("✅ Login successful!")
+                # Notify + Log
+                subject = "🔓 User Logged In - Legal Analyzer"
+                message = f"User has logged in.\n\nEmail: {email}\nTime: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                send_email_notification(subject, message)
+                log_activity("User Logged In", email)
                 st.rerun()
             else:
                 st.error("❌ Invalid credentials.")
@@ -185,106 +231,8 @@ def main_dashboard():
                 st.subheader("🧠 Summary")
                 st.success(summary)
 
-                st.subheader("📑 Key Clauses Found")
-                st.markdown("""
-                <style>
-                .clause-box {
-                    background-color: #f9f9ff;
-                    border-left: 5px solid #919dee;
-                    padding: 10px 15px;
-                    border-radius: 8px;
-                    margin-bottom: 10px;
-                }
-                .clause-title {
-                    font-weight: 600;
-                    color: #2b2b2b;
-                }
-                .clause-status {
-                    float: right;
-                    font-weight: bold;
-                }
-                .found {
-                    color: #008000;
-                }
-                .missing {
-                    color: #e63946;
-                }
-                </style>
-                """, unsafe_allow_html=True)
-
-                for clause, info in clauses.items():
-                    status_icon = "✅" if info["found"] else "❌"
-                    status_class = "found" if info["found"] else "missing"
-                    excerpt = info["excerpt"][:200] + "..." if info["found"] and info["excerpt"] else ""
-                    st.markdown(
-                        f"""
-                        <div class="clause-box">
-                            <span class="clause-title">{clause}</span>
-                            <span class="clause-status {status_class}">{status_icon} {'Found' if info['found'] else 'Missing'}</span>
-                            <br>
-                            <small>{excerpt}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-
                 st.subheader("📜 Extracted Text")
                 st.text_area("Full Document Text", text[:4000] + "...", height=250)
-
-    # -------- Compare Documents --------
-    elif choice == "🔍 Compare Documents":
-        col1, col2 = st.columns(2)
-        file1 = col1.file_uploader("Upload First Document", type=["pdf"], key="cmp1")
-        file2 = col2.file_uploader("Upload Second Document", type=["pdf"], key="cmp2")
-        if file1 and file2:
-            p1 = DATA_RAW / file1.name
-            p2 = DATA_RAW / file2.name
-            with open(p1, "wb") as f:
-                f.write(file1.getbuffer())
-            with open(p2, "wb") as f:
-                f.write(file2.getbuffer())
-            t1 = extract_text_from_pdf(str(p1))
-            t2 = extract_text_from_pdf(str(p2))
-            sim = compare_versions(t1, t2)
-            st.metric("Similarity", f"{sim}%")
-
-            if sim > 80:
-                st.success("✅ Documents are very similar.")
-            elif sim > 50:
-                st.warning("⚠ Moderate differences found.")
-            else:
-                st.error("❌ Significant differences detected.")
-
-    # -------- Reports --------
-    elif choice == "📊 Reports":
-        st.subheader("📊 Document Analysis Reports")
-        history = json.loads(HISTORY_FILE.read_text())
-        user_history = history.get(user, [])
-        if not user_history:
-            st.info("No reports available yet.")
-        else:
-            for item in user_history:
-                st.markdown(f"📄 {item['file']} → Type: {item['type']} | Risk: {item['risk']}")
-
-    # -------- Risk Analysis --------
-    elif choice == "⚠ Risk Analysis":
-        st.subheader("⚠ Risk Level Overview")
-        history = json.loads(HISTORY_FILE.read_text())
-        user_history = history.get(user, [])
-
-        if not user_history:
-            st.info("No analyzed documents yet.")
-        else:
-            low = [d for d in user_history if d["risk"] == "Low"]
-            med = [d for d in user_history if d["risk"] == "Medium"]
-            high = [d for d in user_history if d["risk"] == "High"]
-            st.write(f"🟢 Low Risk: {len(low)} documents")
-            st.write(f"🟡 Medium Risk: {len(med)} documents")
-            st.write(f"🔴 High Risk: {len(high)} documents")
-
-            if st.button("🗑 Clear History"):
-                history[user] = []
-                HISTORY_FILE.write_text(json.dumps(history, indent=2))
-                st.success("✅ History cleared!")
-                st.rerun()
 
 # ------------------ APP ENTRY ------------------
 def main():
